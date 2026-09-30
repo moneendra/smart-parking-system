@@ -1,6 +1,6 @@
 # Smart Parking System — IR sensor → MQTT → live web dashboard
 
-[![CI](https://github.com/YOUR_GITHUB_USERNAME/smart-parking-system/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/smart-parking-system/actions/workflows/ci.yml)
+[![CI](https://github.com/moneendra/smart-parking-system/actions/workflows/ci.yml/badge.svg)](https://github.com/moneendra/smart-parking-system/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 An end-to-end parking-slot booking monitor. A hand placed over an **IR proximity
@@ -269,8 +269,7 @@ The repository is already initialized and committed. To put it on GitHub:
    git push -u origin main
    ```
 
-3. Edit the CI badge at the top of this README: replace `YOUR_GITHUB_USERNAME`
-   with your GitHub username (2 places).
+3. The CI badge is already wired to this repository.
 
 Later changes: `git add -A && git commit -m "describe the change" && git push`.
 
