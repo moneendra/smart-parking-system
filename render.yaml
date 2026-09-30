@@ -1,0 +1,19 @@
+# Render blueprint — deploy the full live server (dashboard + API + Socket.IO)
+# Render → New → Blueprint → pick this repo → it reads this file.
+# You will be asked to fill the two SUPABASE_* values (sync: false) —
+# copy them from your secrets.json / Supabase → Settings → API.
+services:
+  - type: web
+    name: smart-parking-system
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

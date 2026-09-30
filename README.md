@@ -245,30 +245,41 @@ data/data.json               persisted slots + event history (auto-created)
 tools/node/                  portable Node.js runtime (no system Node needed)
 ```
 
-## 9. Deploying the dashboard to Vercel (through GitHub)
+## 9. Deploying the real system to Render (live public URL)
 
-`vercel.json` in the repo root tells Vercel to publish the `public/` folder as
-a static site. A static host cannot run `server.js` (MQTT broker, REST API,
-Socket.IO), so the deployed dashboard runs in **demo mode**: it detects that no
-live server is reachable and shows clearly-labelled simulated slots so the UI
-is fully demonstrable at a public URL. The banner at the top of the page marks
-demo mode; on a machine running `server.js`, the same page switches to live
-data automatically.
+`render.yaml` in the repo root is a Render blueprint for the **full live
+server** — dashboard, REST API, Socket.IO, auth and reservations on a free
+tier. Devices everywhere publish through the public MQTT broker
+(`broker.emqx.io`) using the prefix in `config.json`, so the cloud dashboard
+shows exactly the same real-time slots as a local one.
 
-Steps:
+1. Push the repository to GitHub (see §11).
+2. On [render.com](https://render.com) → sign in **with GitHub** →
+   **New → Blueprint** → select `smart-parking-system` → **Apply**.
+3. When prompted, fill the two env vars:
+   - `SUPABASE_URL` — your Supabase project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` — your secret service key
+4. Deploy takes ~2 minutes. Your live dashboard is at
+   `https://smart-parking-system-xxxx.onrender.com` — sign up, reserve slots,
+   and every device running `serial-bridge.js` / the simulator / an ESP32
+   (anywhere in the world) feeds the same dashboard.
 
-1. Push the repository to GitHub (see §10).
-2. On [vercel.com](https://vercel.com) → **Add New… → Project** → **Import**
-   your `smart-parking-system` GitHub repository.
-3. Framework preset: **Other**. Leave build command empty; the `outputDirectory`
-   from `vercel.json` is applied automatically. Click **Deploy**.
-4. Your dashboard preview is live at `https://<project>.vercel.app` in demo mode.
+Free-tier notes: the service **sleeps after 15 minutes without visitors**
+(the first request then takes ~1 minute to wake it); keep a tab open or ping
+`/api/health` on an uptime monitor to stay awake. The public MQTT broker is
+unauthenticated — the random prefix in `config.json` is the only namespace
+separator, so don't treat it as a security boundary, and don't put anything
+sensitive in slot IDs.
 
-For a public dashboard with **real live data** you need a persistent Node.js
-host (Render, Railway, Fly.io — any that runs `node server.js` long-term with
-WebSocket support); Vercel's free tier is static/serverless only. Note the
-embedded MQTT broker must stay private (it has no authentication) — devices
-should talk to it over your local network.
+### Vercel (optional, static demo only)
+
+`vercel.json` publishes `public/` as a static site. A static host cannot run
+`server.js` (MQTT, WebSockets, sessions), so the Vercel page falls back to
+clearly-labelled **demo mode** with simulated slots — useful as a portfolio
+preview, but for the real system use Render above.
+
+Steps: push to GitHub → [vercel.com](https://vercel.com) → **Add New… →
+Project** → **Import** the repo → Framework preset **Other** → **Deploy**.
 
 ## 10. Connect Supabase (free database) — accounts & reservations
 

@@ -25,7 +25,14 @@ const { Server: SocketIOServer } = require('socket.io');
 
 const config = require('./config.json');
 const store = require('./store');
-const PREFIX = config.mqtt.prefix;
+// Environment variables override config.json (cloud hosts like Render inject these)
+const MQTT_EMBEDDED = process.env.MQTT_EMBEDDED
+  ? process.env.MQTT_EMBEDDED !== 'false'
+  : config.mqtt.embeddedBroker;
+const MQTT_HOST = process.env.MQTT_HOST || config.mqtt.host;
+const MQTT_PORT = parseInt(process.env.MQTT_PORT || config.mqtt.port, 10) || 1883;
+const PORT = parseInt(process.env.PORT || config.httpPort, 10) || 3000;
+const PREFIX = process.env.MQTT_PREFIX || config.mqtt.prefix;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 
@@ -132,11 +139,11 @@ function slotView(slot) {
 /* ------------------------------------------------------------------ */
 /* Embedded MQTT broker                                                */
 /* ------------------------------------------------------------------ */
-if (config.mqtt.embeddedBroker) {
+if (MQTT_EMBEDDED) {
   const aedes = require('aedes')();
-  net.createServer(aedes.handle).listen(config.mqtt.port, () => {
-    log(`Embedded MQTT broker listening on tcp://0.0.0.0:${config.mqtt.port}`);
-    log(`Point Arduino nodes at this machine's LAN IP, port ${config.mqtt.port} (run "ipconfig" to find it)`);
+  net.createServer(aedes.handle).listen(MQTT_PORT, () => {
+    log(`Embedded MQTT broker listening on tcp://0.0.0.0:${MQTT_PORT}`);
+    log(`Point Arduino nodes at this machine's LAN IP, port ${MQTT_PORT} (run "ipconfig" to find it)`);
   });
 }
 
@@ -347,8 +354,9 @@ io.on('connection', (sock) => {
   });
 });
 
-httpServer.listen(config.httpPort, () => {
-  log(`Dashboard:  http://localhost:${config.httpPort}`);
+httpServer.listen(PORT, () => {
+  log(`Dashboard:  http://localhost:${PORT}`);
+  log(`store: ${store.mode} | mqtt: ${MQTT_EMBEDDED ? 'embedded' : `external ${MQTT_HOST}:${MQTT_PORT}`} | prefix: ${PREFIX}`);
   refreshActiveReservations();
   // expire due reservations every 30 s and push the change to all clients
   const resweep = setInterval(async () => {
@@ -375,7 +383,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const statusRe = new RegExp(`^${escapeRe(PREFIX)}/slot/([^/]+)/status$`);
 const availRe = new RegExp(`^${escapeRe(PREFIX)}/slot/([^/]+)/availability$`);
 
-const client = mqtt.connect(`mqtt://${config.mqtt.host}:${config.mqtt.port}`, {
+const client = mqtt.connect(`mqtt://${MQTT_HOST}:${MQTT_PORT}`, {
   clientId: 'smart-parking-server-' + Math.random().toString(16).slice(2, 8),
   clean: true,
   reconnectPeriod: 3000,
@@ -385,7 +393,7 @@ const client = mqtt.connect(`mqtt://${config.mqtt.host}:${config.mqtt.port}`, {
 client.on('connect', () => {
   brokerConnected = true;
   io.emit('broker', true);
-  log(`Connected to MQTT broker ${config.mqtt.host}:${config.mqtt.port}`);
+  log(`Connected to MQTT broker ${MQTT_HOST}:${MQTT_PORT}`);
   client.subscribe([`${PREFIX}/slot/+/status`, `${PREFIX}/slot/+/availability`], (err) => {
     if (err) log('subscribe failed:', err.message);
   });

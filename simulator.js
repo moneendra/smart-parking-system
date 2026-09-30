@@ -17,8 +17,8 @@
 const mqtt = require('mqtt');
 const config = require('./config.json');
 
-const PREFIX = config.mqtt.prefix;
-const URL = `mqtt://${config.mqtt.host}:${config.mqtt.port}`;
+const PREFIX = process.env.MQTT_PREFIX || config.mqtt.prefix;
+const URL = `mqtt://${process.env.MQTT_HOST || config.mqtt.host}:${process.env.MQTT_PORT || config.mqtt.port}`;
 
 function intArg(name, def) {
   const i = process.argv.indexOf(name);

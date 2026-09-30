@@ -2,10 +2,10 @@
   "siteName": "Smart Parking — Block A",
   "httpPort": 3000,
   "mqtt": {
-    "embeddedBroker": true,
-    "host": "127.0.0.1",
+    "embeddedBroker": false,
+    "host": "broker.emqx.io",
     "port": 1883,
-    "prefix": "smartparking/demo01"
+    "prefix": "smartparking/mne-f3kqz2"
   },
   "supabase": {
     "url": "",

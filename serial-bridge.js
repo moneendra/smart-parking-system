@@ -23,8 +23,8 @@ const mqtt = require('mqtt');
 
 /* portable-node-friendly: run with tools/node/node.exe serial-bridge.js */
 const config = require('./config.json');
-const PREFIX = config.mqtt.prefix;
-const MQTT_URL = `mqtt://${config.mqtt.host}:${config.mqtt.port}`;
+const PREFIX = process.env.MQTT_PREFIX || config.mqtt.prefix;
+const MQTT_URL = `mqtt://${process.env.MQTT_HOST || config.mqtt.host}:${process.env.MQTT_PORT || config.mqtt.port}`;
 
 /* ---------- args ---------- */
 function arg(name, def) {
