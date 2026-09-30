@@ -1,0 +1,28 @@
+{
+  "name": "smart-parking-system",
+  "version": "1.0.0",
+  "description": "Arduino IR-proximity parking occupancy system: ESP32 nodes publish slot ID, occupancy status and time over MQTT to a Node.js central server with a real-time web dashboard.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "simulate": "node simulator.js",
+    "bridge": "node serial-bridge.js"
+  },
+  "keywords": [
+    "iot",
+    "mqtt",
+    "arduino",
+    "esp32",
+    "ir-sensor",
+    "parking",
+    "dashboard"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "aedes": "^0.51.0",
+    "express": "^4.19.2",
+    "mqtt": "^5.10.0",
+    "serialport": "^12.0.0",
+    "socket.io": "^4.7.5"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "siteName": "Smart Parking — Block A",
+  "httpPort": 3000,
+  "mqtt": {
+    "embeddedBroker": true,
+    "host": "127.0.0.1",
+    "port": 1883,
+    "prefix": "smartparking/demo01"
+  },
+  "historyLimit": 500
+}

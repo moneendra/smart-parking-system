@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check all JavaScript
+        run: |
+          node --check server.js
+          node --check simulator.js
+          node --check serial-bridge.js
+          node --check public/app.js
+
+      - name: End-to-end smoke test (server + broker + simulator)
+        run: |
+          node server.js > server.log 2>&1 &
+          sleep 3
+          node simulator.js --slots 4 > simulator.log 2>&1 &
+          sleep 6
+
+          echo "--- /api/health ---"; curl -fsS http://localhost:3000/api/health
+          echo; echo "--- /api/stats ---";  curl -fsS http://localhost:3000/api/stats
+
+          SLOTS=$(curl -fsS http://localhost:3000/api/slots)
+          echo "$SLOTS" | grep -q '"id":"S1"' || { echo "slot S1 missing"; exit 1; }
+
+          EVENTS=$(curl -fsS "http://localhost:3000/api/events?limit=10")
+          echo "$EVENTS" | grep -q 'device-online' || { echo "no device-online events"; exit 1; }
+
+          echo "smoke test passed"
+
+      - name: Show server log (on failure)
+        if: failure()
+        run: cat server.log
+
+      - name: Stop background processes
+        if: always()
+        run: |
+          pkill -f "node server.js" || true
+          pkill -f "node simulator.js" || true

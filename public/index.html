@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Parking — Live Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>
+        <h1 id="site-name">Smart Parking</h1>
+        <p class="sub">IR proximity sensor · MQTT · real-time</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="pill" id="ws-pill" title="Dashboard ↔ server connection"><span class="dot"></span><span class="pill-text">Dashboard</span></div>
+      <div class="pill" id="mqtt-pill" title="Server ↔ MQTT broker connection"><span class="dot"></span><span class="pill-text">MQTT broker</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="stats">
+      <div class="stat-card">
+        <span class="stat-label">Total slots</span>
+        <span class="stat-value" id="stat-total">0</span>
+      </div>
+      <div class="stat-card red">
+        <span class="stat-label">Booked</span>
+        <span class="stat-value" id="stat-occupied">0</span>
+      </div>
+      <div class="stat-card green">
+        <span class="stat-label">Available</span>
+        <span class="stat-value" id="stat-free">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Occupancy</span>
+        <span class="stat-value"><span id="stat-rate">0</span><small>%</small></span>
+        <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      </div>
+    </section>
+
+    <section class="section-head">
+      <h2>Parking slots</h2>
+      <span class="live"><span class="dot pulse"></span>LIVE</span>
+    </section>
+    <div id="slots" class="grid">
+      <div class="empty-note" id="empty-note">
+        No devices yet. Upload the Arduino sketch (or run <code>npm run simulate</code>) and slots appear here automatically.
+      </div>
+    </div>
+
+    <section class="section-head">
+      <h2>Occupancy — last 20 minutes</h2>
+    </section>
+    <div class="chart-card">
+      <canvas id="chart" width="920" height="170"></canvas>
+      <div class="chart-legend">
+        <span><i class="swatch sw-red"></i>booked slots</span>
+        <span><i class="swatch sw-blue"></i>total slots</span>
+      </div>
+    </div>
+
+    <section class="section-head">
+      <h2>Recent activity</h2>
+    </section>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Slot</th><th>Event</th><th>Session duration</th></tr>
+        </thead>
+        <tbody id="events-body">
+          <tr class="placeholder"><td colspan="4">Waiting for events…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer>
+    Smart Parking System · devices publish slot ID + occupancy + time over MQTT ·
+    server stamps authoritative wall-clock times · events persisted in <code>data/data.json</code>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
