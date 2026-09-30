@@ -24,7 +24,9 @@ jobs:
           node --check server.js
           node --check simulator.js
           node --check serial-bridge.js
+          node --check store.js
           node --check public/app.js
+          node --check public/auth.js
 
       - name: End-to-end smoke test (server + broker + simulator)
         run: |
