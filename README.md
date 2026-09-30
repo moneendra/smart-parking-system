@@ -177,6 +177,9 @@ mosquitto_pub -h 127.0.0.1 -t "smartparking/demo01/slot/S9/status" \
 - live 20-minute occupancy chart and a scrolling event log
   (`booked / freed / device online / device offline` with session durations)
 
+On static hosting (e.g. Vercel) the page falls back to clearly-labelled **demo
+mode** with simulated slots — see §9.
+
 **REST API** (for integration or a second frontend):
 
 | Endpoint             | Returns                                        |
@@ -228,7 +231,32 @@ data/data.json               persisted slots + event history (auto-created)
 tools/node/                  portable Node.js runtime (no system Node needed)
 ```
 
-## 9. Publishing this project to GitHub
+## 9. Deploying the dashboard to Vercel (through GitHub)
+
+`vercel.json` in the repo root tells Vercel to publish the `public/` folder as
+a static site. A static host cannot run `server.js` (MQTT broker, REST API,
+Socket.IO), so the deployed dashboard runs in **demo mode**: it detects that no
+live server is reachable and shows clearly-labelled simulated slots so the UI
+is fully demonstrable at a public URL. The banner at the top of the page marks
+demo mode; on a machine running `server.js`, the same page switches to live
+data automatically.
+
+Steps:
+
+1. Push the repository to GitHub (see §10).
+2. On [vercel.com](https://vercel.com) → **Add New… → Project** → **Import**
+   your `smart-parking-system` GitHub repository.
+3. Framework preset: **Other**. Leave build command empty; the `outputDirectory`
+   from `vercel.json` is applied automatically. Click **Deploy**.
+4. Your dashboard preview is live at `https://<project>.vercel.app` in demo mode.
+
+For a public dashboard with **real live data** you need a persistent Node.js
+host (Render, Railway, Fly.io — any that runs `node server.js` long-term with
+WebSocket support); Vercel's free tier is static/serverless only. Note the
+embedded MQTT broker must stay private (it has no authentication) — devices
+should talk to it over your local network.
+
+## 10. Publishing this project to GitHub
 
 The repository is already initialized and committed. To put it on GitHub:
 

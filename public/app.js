@@ -162,38 +162,137 @@ function setPill(el, up, upText, downText) {
   el.querySelector('.pill-text').textContent = up ? upText : downText;
 }
 
-/* ---------- socket wiring ---------- */
-const socket = io();
+/* ---------- demo mode (static hosting, e.g. Vercel) ----------
+ * A static deployment can't run server.js / Socket.IO / MQTT. When no live
+ * server answers, the dashboard falls back to a clearly-labelled simulation
+ * so the page still demonstrates the full UI. */
+const demo = { active: false, timers: [] };
 
-socket.on('connect', () => setPill($('#ws-pill'), true, 'Dashboard live', 'Dashboard offline'));
-socket.on('disconnect', () => setPill($('#ws-pill'), false, 'Dashboard live', 'Dashboard offline'));
+function stopDemo() {
+  if (!demo.active) return;
+  demo.active = false;
+  demo.timers.forEach((t) => clearTimeout(t));
+  demo.timers = [];
+  document.body.classList.remove('demo-mode');
+  const b = document.getElementById('demo-banner');
+  if (b) b.remove();
+}
 
-socket.on('broker', (up) => setPill($('#mqtt-pill'), up, 'MQTT broker', 'MQTT broker down'));
+function startDemo() {
+  if (live || demo.active) return;
+  demo.active = true;
+  document.body.classList.add('demo-mode');
+  const banner = document.createElement('div');
+  banner.id = 'demo-banner';
+  banner.innerHTML =
+    '<b>Demo mode</b> — no live server connected, slots below are simulated. ' +
+    'Run <code>npm start</code> (or the Arduino + serial bridge) for real-time data.';
+  document.querySelector('main').prepend(banner);
 
-socket.on('init', (d) => {
-  $('#site-name').textContent = d.siteName || 'Smart Parking';
-  setPill($('#mqtt-pill'), d.brokerConnected, 'MQTT broker', 'MQTT broker down');
-  state.slots = new Map(d.slots.map((s) => [s.id, s]));
-  d.slots.forEach(slotCard);
-  $('#events-body').innerHTML = '';
-  (d.events || []).slice().reverse().forEach((e) => eventRow(e, true));
-  if (!d.events || !d.events.length) {
-    $('#events-body').innerHTML = '<tr class="placeholder"><td colspan="4">Waiting for events…</td></tr>';
+  $('#slots').innerHTML = '';
+  $('#events-body').innerHTML = '<tr class="placeholder"><td colspan="4">Demo activity…</td></tr>';
+  state.slots = new Map();
+  state.samples = [];
+
+  const toggle = (s) => {
+    const now = Date.now();
+    const wasOccupied = s.occupied;
+    s.occupied = !wasOccupied;
+    s.since = s.occupied ? now : null;
+    s.lastSeen = now;
+    s.seq = (s.seq || 0) + 1;
+    slotCard(s);
+    updateStats();
+    eventRow(
+      {
+        ts: now,
+        slotId: s.id,
+        type: s.occupied ? 'occupied' : 'free',
+        durationMs: wasOccupied ? 6000 + Math.floor(Math.random() * 22000) : null,
+      },
+      true
+    );
+    sample();
+    demo.timers.push(setTimeout(() => toggle(s), 6000 + Math.floor(Math.random() * 14000)));
+  };
+
+  for (let i = 1; i <= 6; i++) {
+    const s = {
+      id: 'S' + i,
+      occupied: false,
+      since: null,
+      lastSeen: Date.now(),
+      deviceTimeMs: (i * 37 + 90) * 1000,
+      online: true,
+      seq: 0,
+    };
+    state.slots.set(s.id, s);
+    slotCard(s);
+    demo.timers.push(setTimeout(() => toggle(s), 6000 + Math.floor(Math.random() * 14000)));
   }
+  const s1 = state.slots.get('S1');
+  demo.timers.push(setTimeout(() => toggle(s1), 1500)); // something happens immediately
   updateStats();
   sample();
-});
+}
 
-socket.on('slot', (slot) => {
-  state.slots.set(slot.id, slot);
-  slotCard(slot);
-  updateStats();
-});
+/* ---------- socket wiring (live mode) ---------- */
+let live = false;
+let socket = null;
 
-socket.on('event', (evt) => {
-  eventRow(evt, true);
-  if (evt.type === 'free' || evt.type === 'occupied') sample();
-});
+if (typeof io === 'function') {
+  socket = io();
+
+  socket.on('connect', () => {
+    live = true;
+    stopDemo();
+    setPill($('#ws-pill'), true, 'Dashboard live', 'Dashboard offline');
+  });
+  socket.on('disconnect', () => setPill($('#ws-pill'), false, 'Dashboard live', 'Dashboard offline'));
+
+  socket.on('broker', (up) => setPill($('#mqtt-pill'), up, 'MQTT broker', 'MQTT broker down'));
+
+  socket.on('init', (d) => {
+    live = true;
+    stopDemo();
+    $('#site-name').textContent = d.siteName || 'Smart Parking';
+    setPill($('#mqtt-pill'), d.brokerConnected, 'MQTT broker', 'MQTT broker down');
+    state.slots = new Map(d.slots.map((s) => [s.id, s]));
+    const grid = $('#slots');
+    grid.innerHTML = '';
+    if (!d.slots.length) {
+      grid.innerHTML =
+        '<div class="empty-note" id="empty-note">No devices yet. Upload the Arduino sketch (or run <code>npm run simulate</code>) and slots appear here automatically.</div>';
+    }
+    d.slots.forEach(slotCard);
+    $('#events-body').innerHTML = '';
+    (d.events || []).slice().reverse().forEach((e) => eventRow(e, true));
+    if (!d.events || !d.events.length) {
+      $('#events-body').innerHTML = '<tr class="placeholder"><td colspan="4">Waiting for events…</td></tr>';
+    }
+    updateStats();
+    sample();
+  });
+
+  socket.on('slot', (slot) => {
+    state.slots.set(slot.id, slot);
+    slotCard(slot);
+    updateStats();
+  });
+
+  socket.on('event', (evt) => {
+    eventRow(evt, true);
+    if (evt.type === 'free' || evt.type === 'occupied') sample();
+  });
+
+  // server never answered (static deploy / server down) → fall back to demo
+  setTimeout(() => {
+    if (!live) startDemo();
+  }, 4000);
+} else {
+  // socket.io client script itself missing (pure static hosting)
+  setTimeout(startDemo, 1200);
+}
 
 /* ---------- clocks ---------- */
 setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString('en-GB')), 1000);

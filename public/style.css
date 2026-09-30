@@ -198,6 +198,18 @@ footer {
 }
 footer code { background: var(--panel); padding: 1px 6px; border-radius: 5px; }
 
+/* ---------- demo mode banner ---------- */
+#demo-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  margin-bottom: 16px;
+}
+#demo-banner code { background: rgba(245, 158, 11, 0.16); padding: 1px 6px; border-radius: 5px; }
+
 @media (max-width: 640px) {
   header { padding: 14px 18px; }
   main { padding: 18px 18px 30px; }
