@@ -5,3 +5,4 @@ data/
 tools/
 .zcodeignore
 Thumbs.db
+secrets.json

@@ -174,8 +174,12 @@ mosquitto_pub -h 127.0.0.1 -t "smartparking/demo01/slot/S9/status" \
 - stat cards: total / booked / available / occupancy % with bar
 - a card per slot: **BOOKED / AVAILABLE**, device-online dot, state-since time,
   last update, device uptime — cards appear automatically as devices check in
+- **user accounts + reservations**: sign up (header button or `/signup.html`),
+  log in, then reserve any free slot for 30 min / 1 h / 2 h — the reservation
+  shows on the slot card for everyone and is released manually or expires
+  automatically. Stored in Supabase (see §10) or a local JSON file until then.
 - live 20-minute occupancy chart and a scrolling event log
-  (`booked / freed / device online / device offline` with session durations)
+  (`booked / freed / reserved / device online / device offline` with session durations)
 
 On static hosting (e.g. Vercel) the page falls back to clearly-labelled **demo
 mode** with simulated slots — see §9.
@@ -184,10 +188,17 @@ mode** with simulated slots — see §9.
 
 | Endpoint             | Returns                                        |
 |----------------------|------------------------------------------------|
-| `GET /api/slots`     | current state of every slot                     |
+| `GET /api/slots`     | current state of every slot (incl. active reservation) |
 | `GET /api/stats`     | totals, booked, free, occupancy rate            |
 | `GET /api/events?limit=100` | event history, newest first              |
 | `GET /api/health`    | liveness probe                                  |
+| `POST /api/auth/signup` | `{username, password}` → creates account + session |
+| `POST /api/auth/login`  | `{username, password}` → session cookie      |
+| `POST /api/auth/logout` | clears the session                           |
+| `GET /api/auth/me`   | current username or `null`                      |
+| `POST /api/reservations` | auth; `{slotId, minutes}` → reserve a slot (5–480 min) |
+| `POST /api/reservations/:id/release` | auth; release your reservation  |
+| `GET /api/reservations` | last 50 reservations, newest first           |
 
 **Events** are persisted to `data/data.json` (last 500 by default,
 `historyLimit` in `config.json`) and restored across restarts.
@@ -220,10 +231,13 @@ mode** with simulated slots — see §9.
 
 ```
 server.js                    central server: broker + state + API + Socket.IO
-simulator.js                 fake ESP32 nodes for demo/testing
+store.js                     users + reservations: Supabase REST or local JSON
 serial-bridge.js             Uno USB-serial → MQTT bridge (Option A)
+simulator.js                 fake ESP32 nodes for demo/testing
 config.json                  ports, MQTT prefix, site name, history limit
-public/                      dashboard (index.html, style.css, app.js)
+secrets.json                 (optional, gitignored) Supabase URL + service key
+supabase-setup.sql           run once in Supabase SQL Editor to create tables
+public/                      dashboard + login/signup pages
 firmware/smart_parking_uno_serial/   Arduino Uno sketch (USB mode)
 firmware/smart_parking_node.ino      ESP32/ESP8266 sketch (Wi-Fi mode)
 firmware/config.h            Wi-Fi / broker / slot-id / pins (edit this)
@@ -256,7 +270,38 @@ WebSocket support); Vercel's free tier is static/serverless only. Note the
 embedded MQTT broker must stay private (it has no authentication) — devices
 should talk to it over your local network.
 
-## 10. Publishing this project to GitHub
+## 10. Connect Supabase (free database) — accounts & reservations
+
+Sign-up/sign-in and slot **reservations** are backed by a pluggable store. With
+no configuration it uses a local JSON file (`data/db.json`), so everything works
+out of the box. To use the free **Supabase** database instead:
+
+1. **Create the project:** [supabase.com](https://supabase.com) → sign up free →
+   **New project** (pick a name + region, set a DB password, wait ~2 min).
+2. **Create the tables:** Supabase Dashboard → **SQL Editor** → **New query** →
+   paste the whole contents of **`supabase-setup.sql`** from this repo → **Run**.
+   (Row Level Security stays on with no public policies — the server is the only
+   client, using the secret service key.)
+3. **Copy the credentials:** Dashboard → **Project Settings** → **API** →
+   copy the **Project URL** and the **service_role** key (*the secret one —
+   never the anon key, never commit it*).
+4. **Give them to the server** — pick one:
+   - create **`secrets.json`** in the project folder (already gitignored):
+     ```json
+     { "supabaseUrl": "https://xxxx.supabase.co", "serviceKey": "eyJhbGci..." }
+     ```
+   - or set environment variables `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+     (this is what you'd use on a cloud host).
+5. **Restart** `server.js`. The log now says
+   `[store] user/reservation store: Supabase (https://…)` instead of `local JSON`.
+
+Sign up at `/signup.html` (or the header **Sign up** button), then each free
+slot shows a **Reserve** button (30 min / 1 h / 2 h). Reservations appear on the
+slot card and in the activity log for everyone, and are released manually or
+when they expire. Rules: one active reservation per user, one per slot, and a
+physically occupied slot can't be reserved.
+
+## 11. Publishing this project to GitHub
 
 The repository is already initialized and committed. To put it on GitHub:
 

@@ -7,5 +7,9 @@
     "port": 1883,
     "prefix": "smartparking/demo01"
   },
+  "supabase": {
+    "url": "",
+    "serviceKey": ""
+  },
   "historyLimit": 500
 }

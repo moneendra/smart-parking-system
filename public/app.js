@@ -4,9 +4,14 @@
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
-  slots: new Map(),   // id -> {id, occupied, since, lastSeen, deviceTimeMs, online, seq}
+  slots: new Map(),   // id -> {id, occupied, since, lastSeen, deviceTimeMs, online, seq, reservation?}
   samples: [],        // chart history: {t, occ, total}
+  user: null,         // signed-in username (null = guest)
+  choosing: null,     // slot id currently showing the duration chooser (survives re-renders)
 };
+
+const esc = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- formatting helpers ---------- */
 const pad = (n) => String(n).padStart(2, '0');
@@ -49,6 +54,8 @@ function slotCard(slot) {
         <span class="device-dot" title="device online/offline"></span>
       </div>
       <span class="slot-status">…</span>
+      <div class="res-slot"></div>
+      <div class="slot-actions"></div>
       <div class="slot-meta">
         <span>State since <b class="m-since">—</b></span>
         <span>Last update <b class="m-last">—</b></span>
@@ -66,6 +73,42 @@ function slotCard(slot) {
   card.querySelector('.m-since').textContent = slot.occupied ? fmtTime(slot.since) : '—';
   card.querySelector('.m-last').textContent = ago(slot.lastSeen);
   card.querySelector('.m-up').textContent = fmtDur(slot.deviceTimeMs);
+
+  // reservation badge
+  const res = slot.reservation;
+  const resEl = card.querySelector('.res-slot');
+  if (res) {
+    const ends = fmtTime(new Date(res.endsAt).getTime());
+    resEl.innerHTML =
+      `<span class="res-badge" title="reserved until ${ends}">Reserved by <b>${esc(res.username)}</b> · until ${ends}</span>`;
+  } else {
+    resEl.innerHTML = '';
+  }
+
+  // reserve / release controls (hidden in demo mode — no server behind them).
+  // Re-rendered on every slot update, so the chooser state lives in `state`.
+  const act = card.querySelector('.slot-actions');
+  if (demo.active) {
+    act.innerHTML = '';
+  } else if (res) {
+    if (state.choosing === slot.id) state.choosing = null;
+    act.innerHTML =
+      state.user && state.user === res.username
+        ? '<button class="btn btn-release" data-action="release">Release reservation</button>'
+        : '';
+  } else if (state.user && state.choosing === slot.id) {
+    act.innerHTML =
+      [30, 60, 120]
+        .map(
+          (m) =>
+            `<button class="btn btn-reserve" data-action="reserve" data-minutes="${m}">${m < 60 ? m + ' min' : m / 60 + ' h'}</button>`
+        )
+        .join('') + '<button class="btn" data-action="cancel-choose">✕</button>';
+  } else if (state.user) {
+    act.innerHTML = '<button class="btn btn-reserve" data-action="choose">Reserve</button>';
+  } else {
+    act.innerHTML = '<a class="btn btn-signin" href="/login.html">Sign in to reserve</a>';
+  }
   return card;
 }
 
@@ -80,14 +123,17 @@ function eventRow(evt, prepend) {
     'free':           ['FREED', 'b-green'],
     'device-online':  ['DEVICE ONLINE', 'b-blue'],
     'device-offline': ['DEVICE OFFLINE', 'b-gray'],
+    'reserved':       ['RESERVED', 'b-amber'],
+    'reservation-released': ['RESERVATION RELEASED', 'b-gray'],
+    'reservation-expired':  ['RESERVATION EXPIRED', 'b-gray'],
   };
   const [label, cls] = map[evt.type] || [evt.type.toUpperCase(), 'b-gray'];
 
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td>${fmtTime(evt.ts)}</td>
-    <td><b>${evt.slotId}</b></td>
-    <td><span class="badge ${cls}">${label}</span></td>
+    <td><b>${esc(evt.slotId)}</b></td>
+    <td><span class="badge ${cls}">${label}</span>${evt.username ? `<span class="ev-note">by ${esc(evt.username)}</span>` : ''}</td>
     <td>${evt.type === 'free' ? fmtDur(evt.durationMs) : '—'}</td>`;
   prepend ? body.prepend(tr) : body.appendChild(tr);
 
@@ -293,6 +339,93 @@ if (typeof io === 'function') {
   // socket.io client script itself missing (pure static hosting)
   setTimeout(startDemo, 1200);
 }
+
+/* ---------- header auth area + session ---------- */
+function renderAuthArea() {
+  const el = $('#auth-area');
+  if (!el) return;
+  if (state.user) {
+    el.innerHTML = `<span class="user-chip">${esc(state.user)}</span><button class="link-btn" id="logout-btn">Log out</button>`;
+    el.querySelector('#logout-btn').onclick = async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch {}
+      state.user = null;
+      renderAuthArea();
+      state.slots.forEach((s) => slotCard(s));
+    };
+  } else {
+    el.innerHTML =
+      '<a class="link-btn" href="/login.html">Sign in</a><a class="link-btn primary" href="/signup.html">Sign up</a>';
+  }
+}
+
+(async () => {
+  try {
+    const r = await fetch('/api/auth/me');
+    const d = await r.json();
+    state.user = d.username || null;
+  } catch {
+    state.user = null; // static hosting / server down
+  }
+  renderAuthArea();
+  state.slots.forEach((s) => slotCard(s)); // refresh controls now that the user is known
+})();
+
+/* ---------- reserve / release clicks ---------- */
+$('#slots').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const card = btn.closest('.slot-card');
+  const id = card ? card.id.replace('slot-', '') : '';
+  const slot = state.slots.get(id);
+  if (!slot) return;
+
+  if (btn.dataset.action === 'cancel-choose') {
+    state.choosing = null;
+    slotCard(slot);
+    return;
+  }
+  if (btn.dataset.action === 'choose') {
+    state.choosing = id;
+    slotCard(slot);
+    return;
+  }
+  if (!state.user) {
+    location.href = '/login.html';
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    if (btn.dataset.action === 'reserve') {
+      const r = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotId: id, minutes: Number(btn.dataset.minutes || 60) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      state.choosing = null;
+      if (!r.ok) {
+        alert(d.error || 'could not reserve');
+        slotCard(slot);
+      }
+      // success: the server broadcasts the updated slot, which re-renders the card
+    } else if (btn.dataset.action === 'release' && slot.reservation) {
+      const r = await fetch(`/api/reservations/${encodeURIComponent(slot.reservation.id)}/release`, {
+        method: 'POST',
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        alert(d.error || 'could not release');
+        slotCard(slot);
+      }
+    }
+  } catch {
+    alert('server unreachable — reservations need the live server (npm start)');
+    slotCard(slot);
+  }
+});
 
 /* ---------- clocks ---------- */
 setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString('en-GB')), 1000);
